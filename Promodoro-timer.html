@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Focus — Pomodoro Timer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%23FF3B30'/%3E%3Ccircle cx='50' cy='48' r='36' fill='%23fff'/%3E%3Cline x1='50' y1='48' x2='50' y2='26' stroke='%23FF3B30' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='50' y1='48' x2='66' y2='48' stroke='%23FF3B30' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --blue:#007AFF; --green:#34C759; --orange:#FF9500; --red:#FF3B30; --purple:#AF52DE;
+  --radius-lg:28px; --radius-md:18px; --radius-sm:12px;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+body.theme-light{
+  --bg:#F2F2F7; --card:#FFFFFF; --card2:#FFFFFF; --text:#000000; --text2:#8E8E93;
+  --sep: rgba(60,60,67,0.29); --fillsec: rgba(120,120,128,0.12); --shadow: rgba(0,0,0,0.08);
+  --island-bg: rgba(20,20,22,0.92); --island-text:#fff;
+}
+body.theme-dark{
+  --bg:#000000; --card:#1C1C1E; --card2:#2C2C2E; --text:#FFFFFF; --text2:#98989D;
+  --sep: rgba(84,84,88,0.65); --fillsec: rgba(120,120,128,0.24); --shadow: rgba(0,0,0,0.5);
+  --island-bg: rgba(0,0,0,0.95); --island-text:#fff;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%; overscroll-behavior:none;}
+body{
+  margin:0; font-family:var(--font);
+  background:radial-gradient(circle at 30% 20%, #1c1c22 0%, #0a0a0c 55%, #000 100%);
+  display:flex; align-items:center; justify-content:center;
+  color:var(--text); min-height:100vh; min-height:100dvh;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+#app-frame{
+  width:430px; height:min(900px,96vh); height:min(900px,96dvh); background:var(--bg);
+  border-radius:44px; box-shadow:0 30px 80px rgba(0,0,0,0.5), 0 0 0 10px #0b0b0d;
+  overflow:hidden; position:relative; display:flex; flex-direction:column;
+  transition:background .3s ease;
+}
+
+@media (max-width:480px), (max-height:760px){
+  body{ padding:0; }
+  #app-frame{ width:100vw; width:100dvw; height:100vh; height:100dvh; border-radius:0; box-shadow:none; }
+}
+
+@media (max-width:360px){
+  h1.page-title{ font-size:28px; }
+  .time{ font-size:48px; }
+  .ring-wrap{ width:240px; height:240px; }
+}
+
+@media (max-height:520px) and (orientation:landscape){
+  .island{ padding:6px 16px; font-size:11px; top:8px; }
+  .screens{ padding-top:40px; }
+  .screen{ top:40px; padding-top:8px; }
+  .ring-wrap{ width:170px; height:170px; margin-bottom:10px; }
+  .time{ font-size:36px; }
+  .round-label{ font-size:12px; }
+  .segmented{ margin-bottom:12px; height:32px; }
+  .controls{ margin-bottom:10px; gap:12px; }
+  .ctrl-btn.secondary{ width:44px; height:44px; font-size:16px; }
+  .ctrl-btn.primary{ width:96px; height:50px; font-size:15px; }
+  h1.page-title{ font-size:24px; margin-bottom:10px; }
+}
+
+@media (min-width:600px) and (min-height:700px){
+  #app-frame{ width:460px; height:min(820px,88vh); height:min(820px,88dvh); }
+}
+
+@media (min-width:1024px){
+  #app-frame{ width:440px; height:min(860px,90vh); height:min(860px,90dvh); }
+}
+.island{
+  position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  background:var(--island-bg); color:var(--island-text);
+  padding:9px 20px; border-radius:22px; display:flex; align-items:center; justify-content:center; gap:8px;
+  font-size:13px; font-weight:600; letter-spacing:.2px; z-index:50;
+  box-shadow:0 6px 18px rgba(0,0,0,0.35); transition:all .35s cubic-bezier(.4,0,.2,1);
+  white-space:nowrap; width:max-content; max-width:calc(100% - 32px);
+}
+#islandText{ white-space:nowrap; line-height:1; overflow:hidden; text-overflow:ellipsis; }
+.island-dot{ width:8px; height:8px; border-radius:50%; background:#007AFF; flex:0 0 auto; transition:background .3s; box-shadow:0 0 8px currentColor; }
+.island.running .island-dot{ animation:pulse 1.4s ease-in-out infinite; }
+@keyframes pulse{ 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:.4; transform:scale(.7);} }
+
+.screens{ flex:1; position:relative; overflow:hidden; padding-top:56px; }
+.screen{
+  position:absolute; inset:0; top:56px; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:20px 20px 100px; opacity:1; transform:translateX(0); transition:opacity .25s ease, transform .25s ease;
+}
+.screen.hidden{ opacity:0; pointer-events:none; transform:translateX(8px); }
+.screen::-webkit-scrollbar{ display:none; }
+
+h1.page-title{ font-size:34px; font-weight:800; margin:6px 0 18px; letter-spacing:-.5px; }
+
+.segmented{
+  position:relative; display:flex; background:var(--fillsec); border-radius:10px; padding:2px;
+  margin-bottom:28px; height:36px;
+}
+.seg-btn{
+  flex:1; border:none; background:transparent; z-index:2; font-family:var(--font);
+  font-size:13px; font-weight:600; color:var(--text2); cursor:pointer; border-radius:8px;
+  transition:color .25s;
+}
+.seg-btn.active{ color:var(--text); }
+.seg-thumb{
+  position:absolute; top:2px; left:2px; height:32px; width:calc(33.333% - 2.66px);
+  background:var(--card); border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.15);
+  transition:transform .3s cubic-bezier(.4,0,.2,1);
+}
+
+.ring-wrap{ position:relative; width:280px; height:280px; margin:0 auto 22px; }
+.ring-svg{ width:100%; height:100%; transform:rotate(-90deg); }
+.ring-bg{ fill:none; stroke:var(--fillsec); stroke-width:14; }
+.ring-progress{
+  fill:none; stroke:var(--blue); stroke-width:14; stroke-linecap:round;
+  transition:stroke-dashoffset 1s linear, stroke .4s ease;
+}
+.ring-center{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+}
+.time{ font-size:58px; font-weight:700; letter-spacing:-1px; font-variant-numeric:tabular-nums; }
+.round-label{ font-size:14px; color:var(--text2); font-weight:500; margin-top:4px; }
+
+.task-chip{
+  display:flex; align-items:center; justify-content:center; gap:6px; margin:0 auto 18px; width:fit-content;
+  background:var(--fillsec); color:var(--text); font-size:13px; font-weight:600; padding:7px 14px; border-radius:16px;
+  max-width:80%;
+}
+.task-chip span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.controls{ display:flex; align-items:center; justify-content:center; gap:18px; margin-bottom:22px; }
+.ctrl-btn{
+  border:none; cursor:pointer; font-family:var(--font); transition:transform .12s ease, background .2s;
+}
+.ctrl-btn:active{ transform:scale(0.92); }
+.ctrl-btn.secondary{
+  width:56px; height:56px; border-radius:50%; background:var(--fillsec); color:var(--text); font-size:20px;
+  display:flex; align-items:center; justify-content:center;
+}
+.ctrl-btn.primary{
+  width:120px; height:64px; border-radius:32px; background:var(--blue); color:#fff; font-size:18px; font-weight:700;
+  box-shadow:0 8px 20px rgba(0,122,255,0.35);
+}
+.ctrl-btn.primary.running{ background:var(--orange); box-shadow:0 8px 20px rgba(255,149,0,0.35); }
+
+.dots-row{ display:flex; justify-content:center; gap:8px; }
+.pdot{ width:8px; height:8px; border-radius:50%; background:var(--fillsec); transition:background .3s; }
+.pdot.filled{ background:var(--blue); }
+
+.group-title{ font-size:13px; text-transform:uppercase; color:var(--text2); font-weight:600; margin:22px 4px 8px; letter-spacing:.4px; }
+.group{ background:var(--card); border-radius:var(--radius-md); overflow:hidden; }
+.row{
+  display:flex; align-items:center; justify-content:space-between; padding:13px 16px; min-height:24px;
+  border-bottom:1px solid var(--sep);
+}
+.row:last-child{ border-bottom:none; }
+.row-label{ font-size:16px; }
+.row-sub{ font-size:13px; color:var(--text2); margin-top:2px; }
+.row-value{ color:var(--text2); font-size:16px; }
+
+.switch{ position:relative; display:inline-block; width:51px; height:31px; flex-shrink:0; }
+.switch input{ opacity:0; width:0; height:0; }
+.slider{
+  position:absolute; cursor:pointer; inset:0; background:var(--fillsec); border-radius:34px; transition:.25s;
+}
+.slider::before{
+  content:""; position:absolute; height:27px; width:27px; left:2px; top:2px; background:white; border-radius:50%;
+  transition:.25s; box-shadow:0 2px 5px rgba(0,0,0,0.3);
+}
+.switch input:checked + .slider{ background:var(--green); }
+.switch input:checked + .slider::before{ transform:translateX(20px); }
+
+.stepper{ display:flex; align-items:center; gap:14px; }
+.step-btn{
+  width:28px; height:28px; border-radius:50%; border:none; background:var(--fillsec); color:var(--blue);
+  font-size:17px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+.step-btn:active{ transform:scale(0.9); }
+.step-val{ min-width:56px; text-align:center; font-weight:600; font-variant-numeric:tabular-nums; }
+
+select.ios-select{
+  border:none; background:transparent; color:var(--text2); font-family:var(--font); font-size:16px; text-align:right;
+  direction:rtl;
+}
+
+.preset-row{ display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; margin-bottom:4px; }
+.preset-chip{
+  flex:0 0 auto; padding:10px 16px; border-radius:16px; background:var(--card); border:1px solid var(--sep);
+  font-size:13px; font-weight:600; cursor:pointer; color:var(--text);
+}
+.preset-chip:active{ transform:scale(0.96); }
+
+.add-task-bar{ display:flex; gap:10px; margin-bottom:18px; }
+.add-task-bar input{
+  flex:1; border:none; background:var(--card); border-radius:14px; padding:13px 16px; font-size:16px; color:var(--text);
+  font-family:var(--font);
+}
+.add-task-bar input::placeholder{ color:var(--text2); }
+.add-task-bar button{
+  width:48px; border:none; border-radius:14px; background:var(--blue); color:#fff; font-size:22px; font-weight:600; cursor:pointer;
+}
+.task-item{
+  display:flex; align-items:center; gap:12px; padding:14px 16px; background:var(--card); border-bottom:1px solid var(--sep);
+}
+.task-item:first-child{ border-radius:var(--radius-md) var(--radius-md) 0 0; }
+.task-item:last-child{ border-radius:0 0 var(--radius-md) var(--radius-md); border-bottom:none; }
+.task-item.only{ border-radius:var(--radius-md); }
+.task-item.selected{ background:var(--fillsec); }
+.check-circle{
+  width:24px; height:24px; border-radius:50%; border:2px solid var(--sep); flex-shrink:0; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:14px; color:#fff;
+}
+.check-circle.done{ background:var(--green); border-color:var(--green); }
+.task-name{ flex:1; font-size:16px; cursor:pointer; }
+.task-item.done .task-name{ color:var(--text2); text-decoration:line-through; }
+.task-badge{ font-size:12px; color:var(--text2); font-weight:600; }
+.task-del{ background:none; border:none; color:var(--red); font-size:18px; cursor:pointer; padding:4px; }
+.empty-state{ text-align:center; color:var(--text2); padding:60px 20px; font-size:15px; }
+.empty-state .emoji{ font-size:44px; display:block; margin-bottom:10px; }
+
+.stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:22px; }
+.stat-card{ background:var(--card); border-radius:var(--radius-md); padding:16px; }
+.stat-num{ font-size:28px; font-weight:800; letter-spacing:-.5px; }
+.stat-lbl{ font-size:13px; color:var(--text2); margin-top:2px; }
+.chart-card{ background:var(--card); border-radius:var(--radius-md); padding:18px 16px 12px; margin-bottom:18px; }
+.chart-title{ font-size:15px; font-weight:700; margin-bottom:14px; }
+.bars{ display:flex; align-items:flex-end; justify-content:space-between; height:110px; gap:8px; }
+.bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; gap:6px; }
+.bar{ width:100%; background:var(--blue); border-radius:5px 5px 2px 2px; min-height:3px; transition:height .4s ease; }
+.bar-day{ font-size:11px; color:var(--text2); font-weight:600; }
+
+.tabbar{
+  position:absolute; bottom:0; left:0; right:0; display:flex; background:var(--island-bg,transparent);
+  background:var(--card); border-top:1px solid var(--sep); padding:8px 0 max(8px, env(safe-area-inset-bottom));
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); background:color-mix(in srgb, var(--card) 88%, transparent);
+}
+.tab-btn{
+  flex:1; background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:3px;
+  color:var(--text2); font-family:var(--font); font-size:10px; font-weight:600; cursor:pointer; padding:4px 0;
+}
+.tab-btn.active{ color:var(--blue); }
+.tab-btn svg{ width:24px; height:24px; }
+
+button, input{ font-family:var(--font); }
+button{ touch-action:manipulation; }
+.ring-wrap, .controls, .tabbar, .segmented, .dots-row{ user-select:none; -webkit-user-select:none; }
+
+@media (hover:hover) and (pointer:fine){
+  .ctrl-btn.primary:hover{ filter:brightness(1.08); }
+  .ctrl-btn.secondary:hover{ background:var(--sep); }
+  .tab-btn:hover{ color:var(--text); }
+  .tab-btn.active:hover{ color:var(--blue); }
+  .preset-chip:hover{ border-color:var(--blue); }
+  .task-del:hover{ opacity:0.7; }
+  .seg-btn:hover:not(.active){ color:var(--text); }
+  .step-btn:hover{ background:var(--sep); }
+  ::-webkit-scrollbar{ width:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--sep); border-radius:8px; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:0.01ms !important; transition-duration:0.01ms !important; }
+}
+
+.confirm-note{ font-size:12px; color:var(--text2); text-align:center; margin-top:10px; padding:0 20px; }
+.danger-btn{ color:var(--red); font-weight:600; cursor:pointer; }
+.link-btn{ color:var(--blue); font-weight:600; cursor:pointer; }
+</style>
+</head>
+<body class="theme-light">
+<div id="app-frame">
+  <div class="island" id="island">
+    <span class="island-dot" id="islandDot"></span>
+    <span id="islandText">Focus · Ready</span>
+  </div>
+
+  <div class="screens">
+
+    <section class="screen" id="screen-timer">
+      <div class="segmented" id="modeSwitch">
+        <button class="seg-btn active" data-mode="focus">Focus</button>
+        <button class="seg-btn" data-mode="short">Short Break</button>
+        <button class="seg-btn" data-mode="long">Long Break</button>
+        <span class="seg-thumb" id="segThumb"></span>
+      </div>
+
+      <div class="ring-wrap">
+        <svg class="ring-svg" viewBox="0 0 300 300">
+          <circle class="ring-bg" cx="150" cy="150" r="135"/>
+          <circle class="ring-progress" id="ringProgress" cx="150" cy="150" r="135"/>
+        </svg>
+        <div class="ring-center">
+          <div class="time" id="timeDisplay">25:00</div>
+          <div class="round-label" id="roundLabel">Session 1 of 4</div>
+        </div>
+      </div>
+
+      <div class="task-chip" id="activeTaskChip" hidden>
+        <span>🎯</span><span id="activeTaskName"></span>
+      </div>
+
+      <div class="controls">
+        <button class="ctrl-btn secondary" id="resetBtn" title="Reset">↺</button>
+        <button class="ctrl-btn primary" id="startPauseBtn">Start</button>
+        <button class="ctrl-btn secondary" id="skipBtn" title="Skip">⏭</button>
+      </div>
+
+      <div class="dots-row" id="sessionDots"></div>
+    </section>
+
+    <section class="screen hidden" id="screen-tasks">
+      <h1 class="page-title">Tasks</h1>
+      <div class="add-task-bar">
+        <input type="text" id="taskInput" placeholder="What are you working on?" maxlength="80">
+        <button id="addTaskBtn">+</button>
+      </div>
+      <div id="taskList"></div>
+    </section>
+
+    <section class="screen hidden" id="screen-stats">
+      <h1 class="page-title">Statistics</h1>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-num" id="statTodaySessions">0</div><div class="stat-lbl">Sessions Today</div></div>
+        <div class="stat-card"><div class="stat-num" id="statTodayFocus">0m</div><div class="stat-lbl">Focus Today</div></div>
+        <div class="stat-card"><div class="stat-num" id="statStreak">0</div><div class="stat-lbl">Day Streak 🔥</div></div>
+        <div class="stat-card"><div class="stat-num" id="statTotal">0</div><div class="stat-lbl">Total Sessions</div></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Last 7 Days (focus minutes)</div>
+        <div class="bars" id="weekBars"></div>
+      </div>
+      <div class="group-title">Data</div>
+      <div class="group">
+        <div class="row"><span class="row-label danger-btn" id="resetStatsBtn">Reset Statistics</span></div>
+      </div>
+    </section>
+
+    <section class="screen hidden" id="screen-settings">
+      <h1 class="page-title">Settings</h1>
+
+      <div class="group-title">Quick Presets</div>
+      <div class="preset-row" id="presetRow"></div>
+
+      <div class="group-title">Durations (minutes)</div>
+      <div class="group">
+        <div class="row"><span class="row-label">Focus</span>
+          <div class="stepper"><button class="step-btn" data-dur="focus" data-d="-1">–</button><span class="step-val" id="valFocus">25</span><button class="step-btn" data-dur="focus" data-d="1">+</button></div>
+        </div>
+        <div class="row"><span class="row-label">Short Break</span>
+          <div class="stepper"><button class="step-btn" data-dur="short" data-d="-1">–</button><span class="step-val" id="valShort">5</span><button class="step-btn" data-dur="short" data-d="1">+</button></div>
+        </div>
+        <div class="row"><span class="row-label">Long Break</span>
+          <div class="stepper"><button class="step-btn" data-dur="long" data-d="-1">–</button><span class="step-val" id="valLong">15</span><button class="step-btn" data-dur="long" data-d="1">+</button></div>
+        </div>
+        <div class="row"><span class="row-label">Sessions Before Long Break</span>
+          <div class="stepper"><button class="step-btn" data-dur="cycle" data-d="-1">–</button><span class="step-val" id="valCycle">4</span><button class="step-btn" data-dur="cycle" data-d="1">+</button></div>
+        </div>
+      </div>
+
+      <div class="group-title">Automation</div>
+      <div class="group">
+        <div class="row"><span class="row-label">Auto-start Breaks</span>
+          <label class="switch"><input type="checkbox" id="toggleAutoBreak"><span class="slider"></span></label>
+        </div>
+        <div class="row"><span class="row-label">Auto-start Focus</span>
+          <label class="switch"><input type="checkbox" id="toggleAutoFocus"><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <div class="group-title">Sound &amp; Haptics</div>
+      <div class="group">
+        <div class="row"><span class="row-label">Sound</span>
+          <label class="switch"><input type="checkbox" id="toggleSound"><span class="slider"></span></label>
+        </div>
+        <div class="row"><span class="row-label">Sound Type</span>
+          <select class="ios-select" id="soundType">
+            <option value="chime">Chime</option>
+            <option value="beep">Beep</option>
+            <option value="digital">Digital</option>
+            <option value="bell">Bell</option>
+          </select>
+        </div>
+        <div class="row"><span class="row-label">Volume</span>
+          <input type="range" id="volumeRange" min="0" max="1" step="0.05" style="width:min(120px, 38vw); accent-color:var(--blue);">
+        </div>
+        <div class="row"><span class="row-label">Tick Sound While Running</span>
+          <label class="switch"><input type="checkbox" id="toggleTick"><span class="slider"></span></label>
+        </div>
+        <div class="row"><span class="row-label">Vibration</span>
+          <label class="switch"><input type="checkbox" id="toggleVibration"><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <div class="group-title">Notifications</div>
+      <div class="group">
+        <div class="row"><span class="row-label">Desktop Notifications</span>
+          <label class="switch"><input type="checkbox" id="toggleNotif"><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <div class="group-title">Appearance</div>
+      <div class="group">
+        <div class="row">
+          <div class="segmented" id="themeSwitch" style="margin:0; width:100%;">
+            <button class="seg-btn active" data-theme="auto">Auto</button>
+            <button class="seg-btn" data-theme="light">Light</button>
+            <button class="seg-btn" data-theme="dark">Dark</button>
+            <span class="seg-thumb" id="themeThumb"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="group-title">Shortcuts</div>
+      <div class="group">
+        <div class="row"><span class="row-label">Start / Pause</span><span class="row-value">Space</span></div>
+        <div class="row"><span class="row-label">Reset</span><span class="row-value">R</span></div>
+        <div class="row"><span class="row-label">Skip</span><span class="row-value">S</span></div>
+      </div>
+
+      <div class="group-title">Data</div>
+      <div class="group">
+        <div class="row"><span class="row-label danger-btn" id="resetAllBtn">Reset All Data</span></div>
+      </div>
+      <p class="confirm-note">Focus Timer · Runs entirely in your browser. No account, no tracking, no data leaves your device.</p>
+    </section>
+
+  </div>
+
+  <nav class="tabbar">
+    <button class="tab-btn active" data-target="timer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      Timer
+    </button>
+    <button class="tab-btn" data-target="tasks">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      Tasks
+    </button>
+    <button class="tab-btn" data-target="stats">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>
+      Stats
+    </button>
+    <button class="tab-btn" data-target="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+      Settings
+    </button>
+  </nav>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const STORAGE_KEY = "focusTimerState_v1";
+
+  const defaultState = () => ({
+    settings:{
+      durations:{ focus:25, short:5, long:15 },
+      sessionsBeforeLong:4,
+      autoStartBreaks:true, autoStartFocus:false,
+      soundEnabled:true, soundType:"chime", volume:0.5, tickSound:false,
+      vibration:true, notificationsEnabled:false, theme:"auto"
+    },
+    tasks:[],
+    activeTaskId:null,
+    stats:{ history:{}, totalSessions:0, totalFocusSeconds:0, lastActiveDate:null, currentStreak:0, bestStreak:0 },
+    timer:{ mode:"focus", sessionCount:1, remaining:25*60, running:false, endTimestamp:null }
+  });
+
+  let state = loadState();
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return defaultState();
+      const parsed = JSON.parse(raw);
+      const d = defaultState();
+      const stats = Object.assign(d.stats, parsed.stats);
+      if(stats.history){
+        Object.keys(stats.history).forEach(k=>{
+          if(typeof stats.history[k] === "number"){
+            stats.history[k] = {m: stats.history[k], s: 0};
+          }
+        });
+      }
+      return {
+        settings:Object.assign(d.settings, parsed.settings, {durations:Object.assign(d.settings.durations, parsed.settings && parsed.settings.durations)}),
+        tasks: parsed.tasks || [],
+        activeTaskId: parsed.activeTaskId || null,
+        stats: stats,
+        timer: Object.assign(d.timer, parsed.timer)
+      };
+    }catch(e){ return defaultState(); }
+  }
+  function saveState(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }catch(e){ console.warn("Could not save state:", e); }
+  }
+
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+  const island = $("#island"), islandDot = $("#islandDot"), islandText = $("#islandText");
+  const ring = $("#ringProgress");
+  const timeDisplay = $("#timeDisplay"), roundLabel = $("#roundLabel");
+  const startPauseBtn = $("#startPauseBtn"), resetBtn = $("#resetBtn"), skipBtn = $("#skipBtn");
+  const modeSwitch = $("#modeSwitch"), segThumb = $("#segThumb");
+  const sessionDots = $("#sessionDots");
+  const activeTaskChip = $("#activeTaskChip"), activeTaskName = $("#activeTaskName");
+
+  const RING_R = 135, RING_C = 2*Math.PI*RING_R;
+  ring.style.strokeDasharray = RING_C;
+
+  const MODE_COLORS = { focus:"#007AFF", short:"#34C759", long:"#FF9500" };
+  const MODE_LABELS = { focus:"Focus", short:"Short Break", long:"Long Break" };
+
+  let intervalId = null;
+
+  function durationFor(mode){
+    return state.settings.durations[mode] * 60;
+  }
+
+  function totalDurationForCurrent(){
+    return durationFor(state.timer.mode);
+  }
+
+  function tick(){
+    const t = state.timer;
+    if(!t.running) return;
+    const rem = Math.round((t.endTimestamp - Date.now())/1000);
+    if(rem <= 0){
+      completeSession();
+    } else {
+      t.remaining = rem;
+      renderTimer();
+    }
+  }
+
+  function startTimer(){
+    const t = state.timer;
+    if(t.running) return;
+    t.endTimestamp = Date.now() + t.remaining*1000;
+    t.running = true;
+    intervalId = setInterval(tick, 250);
+    saveState();
+    renderTimer();
+  }
+
+  function pauseTimer(){
+    const t = state.timer;
+    if(!t.running) return;
+    t.remaining = Math.max(0, Math.round((t.endTimestamp - Date.now())/1000));
+    t.running = false;
+    clearInterval(intervalId);
+    saveState();
+    renderTimer();
+  }
+
+  function resetTimer(){
+    const t = state.timer;
+    clearInterval(intervalId);
+    t.running = false;
+    t.remaining = totalDurationForCurrent();
+    saveState();
+    renderTimer();
+  }
+
+  function switchMode(mode, opts={}){
+    const t = state.timer;
+    clearInterval(intervalId);
+    t.mode = mode;
+    t.running = false;
+    t.remaining = durationFor(mode);
+    if(opts.autostart){
+      startTimer();
+    } else {
+      saveState();
+    }
+    renderAll();
+  }
+
+  function completeSession(){
+    const t = state.timer;
+    clearInterval(intervalId);
+    t.running = false;
+
+    playAlert();
+    vibrateAlert();
+    notify();
+
+    if(t.mode === "focus"){
+      recordFocusCompletion();
+      if(t.sessionCount >= state.settings.sessionsBeforeLong){
+        t.sessionCount = 1;
+        switchMode("long", {autostart: state.settings.autoStartBreaks});
+      } else {
+        t.sessionCount += 1;
+        switchMode("short", {autostart: state.settings.autoStartBreaks});
+      }
+    } else {
+      switchMode("focus", {autostart: state.settings.autoStartFocus});
+    }
+  }
+
+  function skipSession(){
+    const t = state.timer;
+    clearInterval(intervalId);
+    t.running = false;
+    if(t.mode === "focus"){
+      if(t.sessionCount >= state.settings.sessionsBeforeLong){
+        t.sessionCount = 1;
+        switchMode("long", {});
+      } else {
+        t.sessionCount += 1;
+        switchMode("short", {});
+      }
+    } else {
+      switchMode("focus", {});
+    }
+  }
+
+  function todayKey(d=new Date()){
+    const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function recordFocusCompletion(){
+    const s = state.stats;
+    const key = todayKey();
+    const mins = state.settings.durations.focus;
+    const entry = s.history[key] || {m:0, s:0};
+    entry.m += mins;
+    entry.s += 1;
+    s.history[key] = entry;
+    s.totalSessions += 1;
+    s.totalFocusSeconds += mins*60;
+
+    if(s.lastActiveDate !== key){
+      const y = new Date(); y.setDate(y.getDate()-1);
+      const yKey = todayKey(y);
+      s.currentStreak = (s.lastActiveDate === yKey) ? s.currentStreak+1 : 1;
+      s.bestStreak = Math.max(s.bestStreak, s.currentStreak);
+      s.lastActiveDate = key;
+    }
+
+    if(state.activeTaskId){
+      const task = state.tasks.find(x=>x.id===state.activeTaskId);
+      if(task && !task.done){ task.completedPomos += 1; }
+    }
+    saveState();
+    renderStats();
+    renderTasks();
+  }
+
+  let audioCtx = null;
+  function getCtx(){
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+  function tone(freq, start, dur, type="sine", peak=0.25){
+    const ctx = getCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type; osc.frequency.value = freq;
+    osc.connect(gain); gain.connect(ctx.destination);
+    const t0 = ctx.currentTime + start;
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(peak*state.settings.volume, t0+0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    osc.start(t0); osc.stop(t0+dur+0.05);
+  }
+  function playAlert(){
+    if(!state.settings.soundEnabled) return;
+    try{
+      const type = state.settings.soundType;
+      if(type==="chime"){ tone(880,0,0.5,"sine",0.3); tone(1320,0.15,0.6,"sine",0.25); }
+      else if(type==="beep"){ tone(700,0,0.12,"square",0.2); tone(700,0.18,0.12,"square",0.2); tone(700,0.36,0.12,"square",0.2); }
+      else if(type==="digital"){ tone(523,0,0.1,"triangle",0.25); tone(659,0.1,0.1,"triangle",0.25); tone(784,0.2,0.18,"triangle",0.25); }
+      else if(type==="bell"){ tone(988,0,1.1,"sine",0.3); tone(1976,0,1.1,"sine",0.12); }
+    }catch(e){}
+  }
+  function playTick(){
+    if(!state.settings.tickSound || !state.settings.soundEnabled) return;
+    try{ tone(1000,0,0.03,"square",0.05); }catch(e){}
+  }
+  function vibrateAlert(){
+    if(state.settings.vibration && navigator.vibrate){ navigator.vibrate([180,90,180]); }
+  }
+  function notify(){
+    if(!state.settings.notificationsEnabled) return;
+    if(document.visibilityState === "visible") return;
+    if(!("Notification" in window) || Notification.permission !== "granted") return;
+    const t = state.timer;
+    const title = t.mode === "focus" ? "Focus session complete" : "Break complete";
+    const body = t.mode === "focus" ? "Time for a break." : "Back to focus when you're ready.";
+    try{ new Notification(title, {body}); }catch(e){}
+  }
+
+  function fmt(sec){
+    const m = Math.floor(sec/60), s = sec%60;
+    return String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
+  }
+
+  function renderTimer(){
+    const t = state.timer;
+    const total = totalDurationForCurrent();
+    timeDisplay.textContent = fmt(t.remaining);
+    const progress = total>0 ? (total - t.remaining)/total : 0;
+    ring.style.strokeDashoffset = RING_C * (1-progress);
+    ring.style.stroke = MODE_COLORS[t.mode];
+
+    roundLabel.textContent = t.mode==="focus"
+      ? `Session ${t.sessionCount} of ${state.settings.sessionsBeforeLong}`
+      : MODE_LABELS[t.mode];
+
+    startPauseBtn.textContent = t.running ? "Pause" : (t.remaining < total ? "Resume" : "Start");
+    startPauseBtn.classList.toggle("running", t.running);
+
+    island.classList.toggle("running", t.running);
+    islandDot.style.background = MODE_COLORS[t.mode];
+    islandText.textContent = `${MODE_LABELS[t.mode]} · ${fmt(t.remaining)}`;
+    document.title = `${fmt(t.remaining)} — ${MODE_LABELS[t.mode]}`;
+
+    $$(".seg-btn", modeSwitch).forEach(b=>b.classList.toggle("active", b.dataset.mode===t.mode));
+    const idx = ["focus","short","long"].indexOf(t.mode);
+    segThumb.style.transform = `translateX(${idx*100}%)`;
+
+    sessionDots.innerHTML = "";
+    for(let i=1;i<=state.settings.sessionsBeforeLong;i++){
+      const d = document.createElement("span");
+      const isFilled = t.mode==="long" ? true : i < t.sessionCount;
+      d.className = "pdot" + (isFilled ? " filled":"");
+      sessionDots.appendChild(d);
+    }
+
+    const task = state.tasks.find(x=>x.id===state.activeTaskId);
+    if(task){ activeTaskChip.hidden=false; activeTaskName.textContent = task.name; }
+    else { activeTaskChip.hidden = true; }
+  }
+
+  function renderTasks(){
+    const list = $("#taskList");
+    list.innerHTML = "";
+    if(state.tasks.length===0){
+      list.innerHTML = `<div class="empty-state"><span class="emoji">📝</span>No tasks yet.<br>Add one to track focus per task.</div>`;
+      return;
+    }
+    state.tasks.forEach((task, i)=>{
+      const row = document.createElement("div");
+      row.className = "task-item" + (task.done?" done":"") + (task.id===state.activeTaskId?" selected":"") + (state.tasks.length===1?" only":"");
+      row.innerHTML = `
+        <div class="check-circle ${task.done?'done':''}" data-check="${task.id}">${task.done?'✓':''}</div>
+        <div class="task-name" data-select="${task.id}">${escapeHtml(task.name)}</div>
+        <div class="task-badge">🍅 ${task.completedPomos}${task.target?('/'+task.target):''}</div>
+        <button class="task-del" data-del="${task.id}">✕</button>
+      `;
+      list.appendChild(row);
+    });
+  }
+  function escapeHtml(str){ const d=document.createElement("div"); d.textContent=str; return d.innerHTML; }
+
+  function renderStats(){
+    const s = state.stats;
+    const key = todayKey();
+    const todayEntry = s.history[key] || {m:0, s:0};
+    $("#statTodaySessions").textContent = todayEntry.s;
+    $("#statTodayFocus").textContent = todayEntry.m+"m";
+    $("#statStreak").textContent = s.currentStreak||0;
+    $("#statTotal").textContent = s.totalSessions||0;
+
+    const bars = $("#weekBars");
+    bars.innerHTML = "";
+    const days = [];
+    for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(d); }
+    const maxVal = Math.max(1, ...days.map(d=>(s.history[todayKey(d)]||{m:0}).m));
+    days.forEach(d=>{
+      const val = (s.history[todayKey(d)]||{m:0}).m;
+      const col = document.createElement("div");
+      col.className = "bar-col";
+      const barH = Math.max(3, (val/maxVal)*100);
+      col.innerHTML = `<div style="font-size:10px;color:var(--text2);font-weight:600;">${val||''}</div>
+        <div class="bar" style="height:${barH}%"></div>
+        <div class="bar-day">${d.toLocaleDateString(undefined,{weekday:'narrow'})}</div>`;
+      bars.appendChild(col);
+    });
+  }
+
+  function renderSettings(){
+    const s = state.settings;
+    $("#valFocus").textContent = s.durations.focus;
+    $("#valShort").textContent = s.durations.short;
+    $("#valLong").textContent = s.durations.long;
+    $("#valCycle").textContent = s.sessionsBeforeLong;
+    $("#toggleAutoBreak").checked = s.autoStartBreaks;
+    $("#toggleAutoFocus").checked = s.autoStartFocus;
+    $("#toggleSound").checked = s.soundEnabled;
+    $("#soundType").value = s.soundType;
+    $("#volumeRange").value = s.volume;
+    $("#toggleTick").checked = s.tickSound;
+    $("#toggleVibration").checked = s.vibration;
+    $("#toggleNotif").checked = s.notificationsEnabled;
+    $$(".seg-btn", $("#themeSwitch")).forEach(b=>b.classList.toggle("active", b.dataset.theme===s.theme));
+    const idx = ["auto","light","dark"].indexOf(s.theme);
+    $("#themeThumb").style.transform = `translateX(${idx*100}%)`;
+  }
+
+  function renderAll(){
+    renderTimer(); renderTasks(); renderStats(); renderSettings();
+  }
+
+  function applyTheme(){
+    const theme = state.settings.theme;
+    let effective = theme;
+    if(theme === "auto"){
+      effective = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark":"light";
+    }
+    document.body.classList.remove("theme-light","theme-dark");
+    document.body.classList.add("theme-"+effective);
+  }
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", ()=>{
+    if(state.settings.theme==="auto") applyTheme();
+  });
+
+  const PRESETS = [
+    {label:"Classic 25/5/15", focus:25, short:5, long:15, cycle:4},
+    {label:"Extended 50/10/30", focus:50, short:10, long:30, cycle:2},
+    {label:"Deep Work 90/20", focus:90, short:20, long:20, cycle:1},
+    {label:"Quick 15/3/10", focus:15, short:3, long:10, cycle:4},
+  ];
+  function buildPresets(){
+    const row = $("#presetRow");
+    row.innerHTML = "";
+    PRESETS.forEach(p=>{
+      const chip = document.createElement("div");
+      chip.className = "preset-chip";
+      chip.textContent = p.label;
+      chip.addEventListener("click", ()=>{
+        state.settings.durations.focus = p.focus;
+        state.settings.durations.short = p.short;
+        state.settings.durations.long = p.long;
+        state.settings.sessionsBeforeLong = p.cycle;
+        resetTimer();
+        renderAll();
+        saveState();
+      });
+      row.appendChild(chip);
+    });
+  }
+
+  $$(".tab-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      $$(".tab-btn").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      $$(".screen").forEach(s=>s.classList.add("hidden"));
+      $("#screen-"+btn.dataset.target).classList.remove("hidden");
+    });
+  });
+
+  $$(".seg-btn", modeSwitch).forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      if(btn.dataset.mode === state.timer.mode) return;
+      switchMode(btn.dataset.mode, {});
+    });
+  });
+
+  startPauseBtn.addEventListener("click", ()=>{
+    getCtx();
+    if(state.timer.running) pauseTimer(); else startTimer();
+  });
+  resetBtn.addEventListener("click", resetTimer);
+  skipBtn.addEventListener("click", skipSession);
+
+  $("#addTaskBtn").addEventListener("click", addTaskFromInput);
+  $("#taskInput").addEventListener("keydown", e=>{ if(e.key==="Enter") addTaskFromInput(); });
+  function addTaskFromInput(){
+    const input = $("#taskInput");
+    const name = input.value.trim();
+    if(!name) return;
+    const task = { id:"t"+Date.now(), name, done:false, completedPomos:0, target:4 };
+    state.tasks.unshift(task);
+    if(!state.activeTaskId) state.activeTaskId = task.id;
+    input.value = "";
+    saveState(); renderTasks(); renderTimer();
+  }
+  $("#taskList").addEventListener("click", e=>{
+    const check = e.target.closest("[data-check]");
+    const sel = e.target.closest("[data-select]");
+    const del = e.target.closest("[data-del]");
+    if(check){
+      const task = state.tasks.find(t=>t.id===check.dataset.check);
+      task.done = !task.done;
+      saveState(); renderTasks();
+    } else if(del){
+      state.tasks = state.tasks.filter(t=>t.id!==del.dataset.del);
+      if(state.activeTaskId===del.dataset.del) state.activeTaskId=null;
+      saveState(); renderTasks(); renderTimer();
+    } else if(sel){
+      const id = sel.dataset.select;
+      state.activeTaskId = state.activeTaskId===id ? null : id;
+      saveState(); renderTasks(); renderTimer();
+    }
+  });
+
+  $("#resetStatsBtn").addEventListener("click", ()=>{
+    if(confirm("Reset all statistics? This cannot be undone.")){
+      state.stats = defaultState().stats;
+      saveState(); renderStats();
+    }
+  });
+
+  $$(".step-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const key = btn.dataset.dur, delta = parseInt(btn.dataset.d,10);
+      if(key==="cycle"){
+        state.settings.sessionsBeforeLong = Math.min(12, Math.max(1, state.settings.sessionsBeforeLong+delta));
+        if(state.timer.mode==="focus" && state.timer.sessionCount > state.settings.sessionsBeforeLong){
+          state.timer.sessionCount = state.settings.sessionsBeforeLong;
+        }
+      } else {
+        const min = 1, max = 180;
+        state.settings.durations[key] = Math.min(max, Math.max(min, state.settings.durations[key]+delta));
+        if(state.timer.mode===key && !state.timer.running){
+          state.timer.remaining = durationFor(key);
+        }
+      }
+      saveState(); renderSettings(); renderTimer();
+    });
+  });
+
+  $("#toggleAutoBreak").addEventListener("change", e=>{ state.settings.autoStartBreaks=e.target.checked; saveState(); });
+  $("#toggleAutoFocus").addEventListener("change", e=>{ state.settings.autoStartFocus=e.target.checked; saveState(); });
+  $("#toggleSound").addEventListener("change", e=>{ state.settings.soundEnabled=e.target.checked; saveState(); });
+  $("#soundType").addEventListener("change", e=>{ state.settings.soundType=e.target.value; saveState(); playAlert(); });
+  $("#volumeRange").addEventListener("input", e=>{ state.settings.volume=parseFloat(e.target.value); saveState(); });
+  $("#toggleTick").addEventListener("change", e=>{ state.settings.tickSound=e.target.checked; saveState(); });
+  $("#toggleVibration").addEventListener("change", e=>{ state.settings.vibration=e.target.checked; saveState(); });
+
+  $("#toggleNotif").addEventListener("change", e=>{
+    if(e.target.checked){
+      if("Notification" in window){
+        Notification.requestPermission().then(perm=>{
+          state.settings.notificationsEnabled = perm==="granted";
+          e.target.checked = perm==="granted";
+          saveState();
+        });
+      } else {
+        alert("Notifications are not supported in this browser.");
+        e.target.checked = false;
+      }
+    } else {
+      state.settings.notificationsEnabled = false; saveState();
+    }
+  });
+
+  $$(".seg-btn", $("#themeSwitch")).forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      state.settings.theme = btn.dataset.theme;
+      saveState(); applyTheme(); renderSettings();
+    });
+  });
+
+  $("#resetAllBtn").addEventListener("click", ()=>{
+    if(confirm("Reset ALL data — settings, tasks, and statistics? This cannot be undone.")){
+      localStorage.removeItem(STORAGE_KEY);
+      state = defaultState();
+      applyTheme(); buildPresets(); renderAll();
+    }
+  });
+
+  document.addEventListener("keydown", e=>{
+    if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement.tagName)) return;
+    if(e.code === "Space"){ e.preventDefault(); getCtx(); state.timer.running ? pauseTimer() : startTimer(); }
+    else if(e.key.toLowerCase()==="r"){ resetTimer(); }
+    else if(e.key.toLowerCase()==="s"){ skipSession(); }
+  });
+
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState === "visible" && state.timer.running){
+      tick();
+    }
+  });
+
+  function init(){
+    const t = state.timer;
+    if(t.running && t.endTimestamp){
+      const rem = Math.round((t.endTimestamp - Date.now())/1000);
+      if(rem <= 0){
+        t.running = false; t.remaining = 0;
+        completeSession();
+      } else {
+        t.remaining = rem;
+        intervalId = setInterval(tick, 250);
+      }
+    }
+    applyTheme();
+    buildPresets();
+    renderAll();
+  }
+  init();
+
+})();
+</script>
+</body>
+</html>
