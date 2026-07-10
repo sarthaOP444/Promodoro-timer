@@ -2,7 +2,7 @@ Focus — Pomodoro Timer
 
 A sleek, iOS-inspired Pomodoro timer web app to help you stay productive with focused work sessions and scheduled breaks.
 
-🔗 Live Demo: promodorotimerapp.netlify.app
+🔗 Live Demo: https://promodorotimerapp.netlify.app/
 
 Features
 
